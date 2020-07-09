@@ -110,7 +110,12 @@ function onMessageReceived(payload) {
             }
         }else if (response_type == "join_chat"){
             var message = response.payload.message;
-            alert(message);   
+            var code = response.payload.code
+            if(code == 1){
+                alert(message);
+                localStorage.removeItem("current-user-token");
+                window.location = "./login.html";
+            }
         }
     }
 }
