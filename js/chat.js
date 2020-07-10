@@ -4,14 +4,17 @@ var usernameForm = document.querySelector('#usernameForm');
 var messageForm = document.querySelector('#messageForm');
 var messageInput = document.querySelector('#message');
 var messageArea = document.querySelector('#messageArea');
-var connectingElement = document.querySelector('.connecting');
 
+var typingUsers = new Set(); // danh sach nguoi dang typing
 
 var stompClient = null;
 var username = null;
 var avatar = null;
 var user_id = 0;
 var joined = false;
+
+var typing = false;
+var timeout = undefined;
 
 var colors = [
     '#2196F3', '#32c787', '#00BCD4', '#ff5652',
@@ -20,7 +23,7 @@ var colors = [
 
 var websocket = new WebSocket("ws://localhost:8080/chatroom-1/phong-chat");
 websocket.onopen = function (message) { processOpen(message); };
-websocket.onmessage = function (message) { onMessageReceived(message); };
+websocket.onmessage = function (message) { onMessageReceived(message);};
 websocket.onclose = function (message) { processClose(message); };
 websocket.onerror = function (message) { onError(message); };
 
@@ -58,9 +61,10 @@ function getToken(){
         return token;
     }
     else{
-       return window.location="./login.html";
+       return window.location="./index.html";
     }
 }
+
 
 function sendMessage(messageContent) {
     console.log(messageContent)
@@ -114,9 +118,25 @@ function onMessageReceived(payload) {
             if(code == 1){
                 alert(message);
                 localStorage.removeItem("current-user-token");
-                window.location = "./login.html";
+                window.location = "./index.html";
             }
         }
+    } else if (action == "user-typing"){
+        var typingUser = response.payload.username;
+        var isTyping = response.payload.typing;
+        if(isTyping == 1){
+            typingUsers.add(typingUser);
+        }else{
+            typingUsers.delete(typingUser);
+        }
+        if(typingUsers.size == 1){
+            document.getElementById('typing').innerHTML = typingUser +" đang soạn tin nhắn....";
+        }else if(typingUsers.size > 1){
+            document.getElementById('typing').innerHTML = "Có " + typingUsers.size + " đang nhập tin nhắn...";
+        } else {
+            document.getElementById('typing').innerHTML = "";
+        }
+        
     }
 }
 function showMessage(username, message){
@@ -207,12 +227,44 @@ window.addEventListener('keydown', function (e) {
 }, true);
 
 
-function check_message(){
+function checkMessage(){
     var messageContent = messageInput.value.trim();
     if(messageContent != ""){
         sendMessage(messageContent)
-        document.getElementById("connecting").style.display = "none";
+    }
+}
+function logOut(){
+    localStorage.removeItem("current-user-token");
+    window.location = "./index.html";
+}
+
+function sendTypingEvent(typing){
+    var token = getToken();
+    var json = {
+        "action": "typing-event",
+        "payload": {
+            "token": token,
+            "typing": typing
+        }
+    }
+    if (typeof websocket != 'undefined' && websocket.readyState == WebSocket.OPEN) {
+        websocket.send(JSON.stringify(json));
     }
 }
 
 
+function stopTyping (){
+    typing = false;
+    sendTypingEvent(0);
+}
+
+function onKeyDownNotEnter(){
+  if(typing == false) {
+    typing = true
+    sendTypingEvent(1);
+    timeout = setTimeout(stopTyping, 5000);
+  } else {
+    clearTimeout(timeout);
+    timeout = setTimeout(stopTyping, 5000);
+  }
+}
